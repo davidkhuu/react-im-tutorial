@@ -4,6 +4,7 @@ import { Button, withStyles } from '@material-ui/core';
 import styles from './styles';
 import ChatViewComponent from '../chatview/chatview';
 import ChatTextBoxComponent from '../chattextbox/chattextbox';
+import NewChatComponent from '../newchat/newchat';
 const firebase = require('firebase');
 
 class DashboardComponent extends React.Component {
@@ -60,7 +61,7 @@ class DashboardComponent extends React.Component {
   buildDocKey = (friend) => [this.state.email, friend].sort().join(':');
 
   selectChat = async (chatIndex) => {
-    await this.setState({ selectedChat: chatIndex });
+    await this.setState({ selectedChat: chatIndex, newChatFormVisible: false });
     this.messageRead();
   }
 
@@ -82,6 +83,32 @@ class DashboardComponent extends React.Component {
   clickedChatWhereNotSender = (chatIndex) => this.state.chats[chatIndex].messages[this.state.chats[chatIndex].messages.length - 1].sender !== this.state.email;
 
   signOut = () => firebase.auth().signOut();
+
+  goToChat = async (docKey, msg) => {
+    const usersInChat = docKey.split(':');
+    const chat = this.state.chats.find(_chat => usersInChat.every(_user => _chat.users.includes(_user)));
+    this.setState({ newChatFormVisible: false });
+    await this.selectChat(this.state.chats.indexOf(chat));
+    this.submitMessage(msg);
+  }
+
+  newChatSubmit = async (chatObj) => {
+    const docKey = this.buildDocKey(chatObj.sendTo);
+    await firebase
+      .firestore()
+      .collection('chats')
+      .doc(docKey)
+      .set({
+        receiverHasRead: false,
+        users: [this.state.email, chatObj.sendTo],
+        messages: [{
+          message: chatObj.message,
+          sender: this.state.email
+        }]
+      });
+    this.setState({ newChatFormVisible: false });
+    this.selectChat(this.state.chats.length - 1);
+  }
 
   render() {
     const { classes} = this.props;
@@ -110,6 +137,13 @@ class DashboardComponent extends React.Component {
             messageReadFn={this.messageRead}
           /> :
           null
+        }
+        {
+          this.state.newChatFormVisible ?
+          <NewChatComponent
+            goToChatFn={this.goToChat}
+            newChatSubmitFn={this.newChatSubmit}
+          /> : null
         }
         <Button
           className={classes.signOutBtn}
